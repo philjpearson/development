@@ -1,5 +1,5 @@
 ﻿//
-//	Last mod:	11 July 2016 11:27:51
+//	Last mod:	14 July 2016 20:46:36
 //
 using System;
 using System.Collections.Generic;
@@ -158,6 +158,19 @@ namespace VideoManager
 					Videos = videos;
 					Result.SetSuccess();
 					}
+				}
+			}
+
+		private RelayCommand refreshCommand;
+
+		public RelayCommand RefreshCommand
+			{
+			get
+				{
+				return refreshCommand ?? (refreshCommand = new RelayCommand(param =>
+				{
+					GetVideoInformation();
+				}));
 				}
 			}
 

@@ -210,3 +210,6 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+
+# client_id.json has sensitive stuff I don't want the rest of the world to see
+*/Assets/client_id.json

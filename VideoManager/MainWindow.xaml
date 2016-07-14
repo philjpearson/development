@@ -1,4 +1,4 @@
-﻿<!-- Last mod: 09 July 2016 20:41:10 -->
+﻿<!-- Last mod: 14 July 2016 20:46:36 -->
 
 <Window x:Class="VideoManager.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -9,6 +9,9 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="350" Width="525"
         >
+	<Window.InputBindings>
+		<KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
+	</Window.InputBindings>
     <Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition />
