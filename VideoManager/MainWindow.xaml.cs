@@ -1,5 +1,5 @@
 ﻿//
-//	Last mod:	14 July 2016 20:46:36
+//	Last mod:	26 July 2016 22:49:05
 //
 using System;
 using System.Collections.Generic;
@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Windows;
 using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
@@ -18,9 +19,9 @@ namespace VideoManager
 	/// <summary>
 	/// Interaction logic for MainWindow.xaml
 	/// </summary>
-	public partial class MainWindow : Window, INotifyPropertyChanged
+	public partial class MainWindow : WindowBase
 		{
-		public event PropertyChangedEventHandler PropertyChanged;
+		private YouTubeService youtubeService;
 
 		public MainWindow()
 			{
@@ -29,9 +30,17 @@ namespace VideoManager
 			Loaded += MainWindow_Loaded;
 			}
 
-		private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+		private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
 			{
-			GetVideoInformation();
+			var result = await Login();
+			if (result.Success)
+				{
+				GetVideoInformation();
+				}
+			else
+				{
+				MessageBox.Show($"Login failed: {result.Error}", Title, MessageBoxButton.OK, MessageBoxImage.Error);
+				}
 			}
 
 		//
@@ -96,69 +105,78 @@ namespace VideoManager
 				}
 			}
 
-		private void button_Click(object sender, RoutedEventArgs e)
+		private async Task<Result> Login()
 			{
-			}
+			Result result;
 
-		private async void GetVideoInformation()
-			{ 
 			using (var jsonStreamReader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream("VideoManager.Assets.client_id.json")))
 				{
 				string json = jsonStreamReader.ReadToEnd();
 				OAuth2Interface oAuth = new OAuth2Interface();
-				if (oAuth.InitialiseClient(json).Success
-					&& (await oAuth.Authorise(new string[] { YouTubeService.Scope.YoutubeReadonly })).Success)
+				result = oAuth.InitialiseClient(json);
+				if (result.Success
+					&& (await oAuth.Authorise(new string[] { YouTubeService.Scope.YoutubeUpload })).Success)
 					{
-					var youtubeService = new YouTubeService(new BaseClientService.Initializer()
+					youtubeService = new YouTubeService(new BaseClientService.Initializer()
 						{
 						HttpClientInitializer = oAuth.Credential,
 						ApplicationName = this.GetType().ToString()
 						});
-
-					List<Video> videos = new List<Video>();
-					SearchListResponse response;
-
-					try
-						{
-						// searches are allowed a maximum of 50 results per call (max allowed value of MaxResults)
-						var searchReq = youtubeService.Search.List("snippet");
-						//					searchReq.Q = "Bible";
-						searchReq.ForMine = true;
-						searchReq.Type = "video";
-						searchReq.Fields = "items(id/videoId,snippet(description,title)),nextPageToken";
-						searchReq.MaxResults = 50;
-						do
-							{
-							// get a page of videos, build a list of video ids with titles and descriptions
-							response = await searchReq.ExecuteAsync();
-							var vlist = (from v in response.Items select new Video { Id = v.Id.VideoId, Title = v.Snippet.Title, Description = v.Snippet.Description }).ToList();
-
-							// get the view count and recording date for each of the videos
-							var ids = from v in vlist select v.Id;
-							var listReq = youtubeService.Videos.List("recordingDetails,statistics");
-							listReq.Id = string.Join(",", ids);
-							listReq.Fields = "items(recordingDetails/recordingDate,statistics/viewCount)";
-							var listResponse = await listReq.ExecuteAsync();
-							var details = (from v in listResponse.Items select new Details { ViewCount = v.Statistics.ViewCount, RecordingDate = v.RecordingDetails?.RecordingDate }).ToList();
-
-							// zip the two sets of results together into the list of video information
-							videos.AddRange(vlist.Zip(details, (v, d) => { v.ViewCount = d.ViewCountToGo; v.RecordingDate = d.RecordingDateToGo; return v; }));
-
-							if (response.NextPageToken != searchReq.PageToken)
-								searchReq.PageToken = response.NextPageToken;
-							else
-								response.NextPageToken = null;  // there seems to be a bug that stops it returning null after a non-null
-							}
-						while (response.NextPageToken != null && response.Items.Count == searchReq.MaxResults);
-						}
-					catch (Exception ex)
-						{
-						Result.SetError(ex.Message);
-						}
-					Videos = videos;
-					Result.SetSuccess();
 					}
 				}
+			return result;
+			}
+
+		private async void GetVideoInformation()
+			{
+			List<Video> videos = new List<Video>();
+			SearchListResponse response;
+
+			try
+				{
+				// searches are allowed a maximum of 50 results per call (max allowed value of MaxResults)
+				var searchReq = youtubeService.Search.List("snippet");
+				//					searchReq.Q = "Bible";
+				searchReq.ForMine = true;
+				searchReq.Type = "video";
+				searchReq.Fields = "items(id/videoId,snippet(description,title)),nextPageToken";
+				searchReq.MaxResults = 50;
+				do
+					{
+					// get a page of videos, build a list of video ids with titles and descriptions
+					response = await searchReq.ExecuteAsync();
+					var vlist = (from v in response.Items select new Video { Id = v.Id.VideoId, Title = v.Snippet.Title, Description = v.Snippet.Description }).ToList();
+
+					// get the view count and recording date for each of the videos
+					var ids = from v in vlist select v.Id;
+					var listReq = youtubeService.Videos.List("recordingDetails,statistics");
+					listReq.Id = string.Join(",", ids);
+					listReq.Fields = "items(recordingDetails/recordingDate,statistics/viewCount)";
+					var listResponse = await listReq.ExecuteAsync();
+					var details = (from v in listResponse.Items select new Details { ViewCount = v.Statistics.ViewCount, RecordingDate = v.RecordingDetails?.RecordingDate }).ToList();
+
+					// zip the two sets of results together into the list of video information
+					videos.AddRange(vlist.Zip(details, (v, d) => { v.ViewCount = d.ViewCountToGo; v.RecordingDate = d.RecordingDateToGo; return v; }));
+
+					if (response.NextPageToken != searchReq.PageToken)
+						searchReq.PageToken = response.NextPageToken;
+					else
+						response.NextPageToken = null;  // there seems to be a bug that stops it returning null after a non-null
+					}
+				while (response.NextPageToken != null && response.Items.Count == searchReq.MaxResults);
+				}
+			catch (Exception ex)
+				{
+				Result.SetError(ex.Message);
+				}
+			Videos = videos;
+			Result.SetSuccess();
+			}
+
+		private void ShowUploadUI()
+			{
+			var uploadView = new UploadView(youtubeService);
+			uploadView.ShowDialog();
 			}
 
 		private RelayCommand refreshCommand;
@@ -170,13 +188,36 @@ namespace VideoManager
 				return refreshCommand ?? (refreshCommand = new RelayCommand(param =>
 				{
 					GetVideoInformation();
-				}));
+				},
+				param=> { return youtubeService != null; }));
 				}
 			}
 
-		void RaisePropertyChanged(string propertyName)
+		private RelayCommand uploadCommand;
+
+		public RelayCommand UploadCommand
 			{
-			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+			get
+				{
+				return uploadCommand ?? (uploadCommand = new RelayCommand(param =>
+				{
+					ShowUploadUI();
+				},
+				param => { return youtubeService != null; }));
+				}
+			}
+
+		private RelayCommand exitCommand;
+
+		public RelayCommand ExitCommand
+			{
+			get
+				{
+				return exitCommand ?? (exitCommand = new RelayCommand(param =>
+				{
+					Close();
+				}));
+				}
 			}
 		}
 	}
