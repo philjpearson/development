@@ -1,4 +1,4 @@
-﻿<!-- Last mod: 26 July 2016 19:43:04 -->
+﻿<!-- Last mod: 06 February 2018 21:31:36 -->
 
 <local:WindowBase x:Class="VideoManager.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -12,11 +12,17 @@
 	<local:WindowBase.InputBindings>
 		<KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
 		<KeyBinding Gesture="Ctrl+U" Modifiers="Ctrl" Command="{Binding UploadCommand}" />
+		<KeyBinding Gesture="Ctrl+B" Modifiers="Ctrl" Command="{Binding CreateBroadcastCommand}" />
 	</local:WindowBase.InputBindings>
 	<DockPanel>
 		<Menu DockPanel.Dock="Top">
 			<MenuItem Header="_File">
 				<MenuItem Header="_Upload..." Command="{Binding UploadCommand}" InputGestureText="Ctrl+U" />
+				<Separator />
+				<MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
+			</MenuItem>
+			<MenuItem Header="_Broadcast">
+				<MenuItem Header="_Create..." Command="{Binding CreateBroadcastCommand}" InputGestureText="Ctrl+B" />
 				<Separator />
 				<MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
 			</MenuItem>

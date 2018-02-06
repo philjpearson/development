@@ -1,9 +1,8 @@
 ﻿//
-//	Last mod:	26 July 2016 22:49:05
+//	Last mod:	06 February 2018 23:24:15
 //
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -70,7 +69,7 @@ namespace VideoManager
 				set;
 				}
 
-			public ulong ViewCountToGo { get { return ViewCount.HasValue ? ViewCount.Value : 0; } }
+			public ulong ViewCountToGo { get { return ViewCount ?? 0; } }
 
 			public string RecordingDateToGo { get { return RecordingDate.HasValue ? RecordingDate.Value.ToString("yyyy-MM-dd") : string.Empty; } }
 			}
@@ -115,12 +114,12 @@ namespace VideoManager
 				OAuth2Interface oAuth = new OAuth2Interface();
 				result = oAuth.InitialiseClient(json);
 				if (result.Success
-					&& (await oAuth.Authorise(new string[] { YouTubeService.Scope.YoutubeUpload })).Success)
+					&& (await oAuth.Authorise(new string[] { YouTubeService.Scope.YoutubeUpload, YouTubeService.Scope.YoutubeForceSsl })).Success)
 					{
 					youtubeService = new YouTubeService(new BaseClientService.Initializer()
 						{
 						HttpClientInitializer = oAuth.Credential,
-						ApplicationName = this.GetType().ToString()
+						ApplicationName = GetType().ToString()
 						});
 					}
 				}
@@ -164,13 +163,58 @@ namespace VideoManager
 						response.NextPageToken = null;  // there seems to be a bug that stops it returning null after a non-null
 					}
 				while (response.NextPageToken != null && response.Items.Count == searchReq.MaxResults);
+				Result.SetSuccess();
 				}
 			catch (Exception ex)
 				{
 				Result.SetError(ex.Message);
 				}
 			Videos = videos;
-			Result.SetSuccess();
+			}
+
+		async Task MakeLiveEventAsync()
+			{
+			Result result = new Result();
+
+			try
+				{
+				List<LiveBroadcast> broadcasts = new List<LiveBroadcast>();
+
+				var listReq = youtubeService.LiveBroadcasts.List("id,snippet,contentDetails,status");
+				listReq.Mine = true;
+				// listReq.Fields = "items(id/videoId,snippet(description,title)),nextPageToken";
+				listReq.MaxResults = 50;
+				var listResponse = await listReq.ExecuteAsync();
+
+				LiveBroadcast broadcast = new LiveBroadcast
+					{
+					ContentDetails = new LiveBroadcastContentDetails
+						{
+						EnableDvr = true,
+						EnableEmbed = true,
+						LatencyPreference = "normal"
+						},
+					Snippet = new LiveBroadcastSnippet
+						{
+						ScheduledStartTime = new DateTime(2018, 02, 06, 22, 23, 24),
+						Title = "Stafford Live Test",
+						Description = "A test event created by Phil's VideoManager application",
+						LiveChatId = null
+						},
+					Status = new LiveBroadcastStatus
+						{
+						PrivacyStatus = "unlisted"
+						}
+					};
+
+				var insertReq = youtubeService.LiveBroadcasts.Insert(broadcast, "id,snippet,contentDetails,status");
+				broadcast = await insertReq.ExecuteAsync();
+				result.SetSuccess();
+				}
+			catch (Exception ex)
+				{
+				result.SetError(ex.Message);
+				}
 			}
 
 		private void ShowUploadUI()
@@ -202,6 +246,20 @@ namespace VideoManager
 				return uploadCommand ?? (uploadCommand = new RelayCommand(param =>
 				{
 					ShowUploadUI();
+				},
+				param => { return youtubeService != null; }));
+				}
+			}
+
+		private RelayCommand createBroadcastCommand;
+
+		public RelayCommand CreateBroadcastCommand
+			{
+			get
+				{
+				return createBroadcastCommand ?? (createBroadcastCommand = new RelayCommand(async param =>
+				{
+					await MakeLiveEventAsync();
 				},
 				param => { return youtubeService != null; }));
 				}
