@@ -1,4 +1,4 @@
-﻿<!-- Last mod: 06 February 2018 21:31:36 -->
+﻿<!-- Last mod: 07 February 2018 17:18:34 -->
 
 <local:WindowBase x:Class="VideoManager.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -34,6 +34,15 @@
 			</Grid.RowDefinitions>
 
 			<DataGrid IsReadOnly="True" ItemsSource="{Binding Videos}" AutoGenerateColumns="False">
+				<DataGrid.RowStyle>
+					<Style TargetType="DataGridRow">
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding Privacy}" Value="public">
+								<Setter Property="Background" Value="MediumAquamarine"/>
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</DataGrid.RowStyle>
 				<DataGrid.Columns>
 					<DataGridTextColumn Header="Video ID" Binding="{Binding Id}" />
 					<DataGridTextColumn Header="Title" Binding="{Binding Title}" />
@@ -45,6 +54,7 @@
 							</Style>
 						</DataGridTextColumn.ElementStyle>
 					</DataGridTextColumn>
+					<DataGridTextColumn Header="Privacy" Binding="{Binding Privacy}" />
 					<DataGridTextColumn Header="View Count" Binding="{Binding ViewCount}" />
 				</DataGrid.Columns>
 			</DataGrid>

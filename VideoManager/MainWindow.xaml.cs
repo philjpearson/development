@@ -1,5 +1,5 @@
 ﻿//
-//	Last mod:	06 February 2018 23:24:15
+//	Last mod:	07 February 2018 17:14:17
 //
 using System;
 using System.Collections.Generic;
@@ -54,20 +54,14 @@ namespace VideoManager
 			public string Title { get; set; }
 			public string Description { get; set; }
 			public ulong ViewCount { get; set; }
+			public string Privacy { get; set; }
 			}
 
 		class Details
 			{
-			public ulong? ViewCount
-				{
-				get;
-				set;
-				}
-			public DateTime? RecordingDate
-				{
-				get;
-				set;
-				}
+			public ulong? ViewCount { get; set; }
+			public DateTime? RecordingDate { get; set; }
+			public string Privacy { get; set; }
 
 			public ulong ViewCountToGo { get { return ViewCount ?? 0; } }
 
@@ -148,14 +142,14 @@ namespace VideoManager
 
 					// get the view count and recording date for each of the videos
 					var ids = from v in vlist select v.Id;
-					var listReq = youtubeService.Videos.List("recordingDetails,statistics");
+					var listReq = youtubeService.Videos.List("recordingDetails,statistics,status");
 					listReq.Id = string.Join(",", ids);
-					listReq.Fields = "items(recordingDetails/recordingDate,statistics/viewCount)";
+					listReq.Fields = "items(recordingDetails/recordingDate,statistics/viewCount,status/privacyStatus)";
 					var listResponse = await listReq.ExecuteAsync();
-					var details = (from v in listResponse.Items select new Details { ViewCount = v.Statistics.ViewCount, RecordingDate = v.RecordingDetails?.RecordingDate }).ToList();
+					var details = (from v in listResponse.Items select new Details { ViewCount = v.Statistics.ViewCount, RecordingDate = v.RecordingDetails?.RecordingDate, Privacy=v.Status.PrivacyStatus }).ToList();
 
 					// zip the two sets of results together into the list of video information
-					videos.AddRange(vlist.Zip(details, (v, d) => { v.ViewCount = d.ViewCountToGo; v.RecordingDate = d.RecordingDateToGo; return v; }));
+					videos.AddRange(vlist.Zip(details, (v, d) => { v.ViewCount = d.ViewCountToGo; v.RecordingDate = d.RecordingDateToGo; v.Privacy = d.Privacy; return v; }));
 
 					if (response.NextPageToken != searchReq.PageToken)
 						searchReq.PageToken = response.NextPageToken;
@@ -175,6 +169,7 @@ namespace VideoManager
 		async Task MakeLiveEventAsync()
 			{
 			Result result = new Result();
+			bool makeOne = false;
 
 			try
 				{
@@ -182,33 +177,40 @@ namespace VideoManager
 
 				var listReq = youtubeService.LiveBroadcasts.List("id,snippet,contentDetails,status");
 				listReq.Mine = true;
-				// listReq.Fields = "items(id/videoId,snippet(description,title)),nextPageToken";
 				listReq.MaxResults = 50;
 				var listResponse = await listReq.ExecuteAsync();
 
-				LiveBroadcast broadcast = new LiveBroadcast
-					{
-					ContentDetails = new LiveBroadcastContentDetails
-						{
-						EnableDvr = true,
-						EnableEmbed = true,
-						LatencyPreference = "normal"
-						},
-					Snippet = new LiveBroadcastSnippet
-						{
-						ScheduledStartTime = new DateTime(2018, 02, 06, 22, 23, 24),
-						Title = "Stafford Live Test",
-						Description = "A test event created by Phil's VideoManager application",
-						LiveChatId = null
-						},
-					Status = new LiveBroadcastStatus
-						{
-						PrivacyStatus = "unlisted"
-						}
-					};
+				var streamsReq = youtubeService.LiveStreams.List("id,snippet,cdn,status");
+				streamsReq.Mine = true;
+				streamsReq.MaxResults = 50;
+				var streamsResp = await streamsReq.ExecuteAsync();
 
-				var insertReq = youtubeService.LiveBroadcasts.Insert(broadcast, "id,snippet,contentDetails,status");
-				broadcast = await insertReq.ExecuteAsync();
+				if (makeOne)
+					{
+					LiveBroadcast broadcast = new LiveBroadcast
+						{
+						ContentDetails = new LiveBroadcastContentDetails
+							{
+							EnableDvr = true,
+							EnableEmbed = true,
+							LatencyPreference = "normal"
+							},
+						Snippet = new LiveBroadcastSnippet
+							{
+							ScheduledStartTime = new DateTime(2018, 02, 06, 22, 23, 24),
+							Title = "Stafford Live Test",
+							Description = "A test event created by Phil's VideoManager application",
+							LiveChatId = null
+							},
+						Status = new LiveBroadcastStatus
+							{
+							PrivacyStatus = "unlisted"
+							}
+						};
+
+					var insertReq = youtubeService.LiveBroadcasts.Insert(broadcast, "id,snippet,contentDetails,status");
+					broadcast = await insertReq.ExecuteAsync();
+					}
 				result.SetSuccess();
 				}
 			catch (Exception ex)
